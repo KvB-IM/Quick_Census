@@ -1,823 +1,5 @@
-<!DOCTYPE html>
-<html lang="en" class="h-full antialiased bg-slate-50">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Census Pro | Quick-Entry Tool</title>
-    
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- PapaParse -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
-    <script>
-        // Tailwind Config
-        document.addEventListener('DOMContentLoaded', () => {
-             if (typeof tailwind !== 'undefined') {
-                tailwind.config = {
-                    theme: {
-                        extend: {
-                            fontFamily: {
-                                sans: ['Inter', 'sans-serif'],
-                            },
-                            colors: {
-                                slate: {
-                                    850: '#151f32', // Custom dark
-                                }
-                            }
-                        },
-                    },
-                };
-            }
-        });
-    </script>
+import * as XLSX from 'xlsx';
 
-    <style>
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: transparent; 
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #cbd5e1; 
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #94a3b8; 
-        }
-
-        /* Hide number arrows */
-        input[type=number]::-webkit-inner-spin-button,
-        input[type=number]::-webkit-outer-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
-        }
-        
-        /* Table Styles */
-        .census-table th {
-            position: sticky;
-            top: 0;
-            z-index: 20;
-            background-color: rgba(248, 250, 252, 0.95); /* slate-50 */
-            backdrop-filter: blur(4px);
-            font-weight: 600;
-            font-size: 0.70rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: #64748b; /* slate-500 */
-            padding: 10px 8px;
-            border-bottom: 1px solid #e2e8f0;
-            white-space: nowrap;
-        }
-        
-        /* Sticky Column Logic */
-        .sticky-col {
-            position: sticky;
-            left: 0;
-            background-color: inherit; /* Use parent background */
-            z-index: 30 !important; /* Higher than normal cells */
-            box-shadow: 2px 0 5px -2px rgba(0,0,0,0.1); /* Subtle shadow separator */
-        }
-        
-        /* Ensure header sticky col sits above row sticky cols */
-        th.sticky-col {
-            z-index: 40 !important;
-            background-color: rgba(248, 250, 252, 1); /* Solid background for header */
-        }
-
-        /* Slick "Ghost" Inputs */
-        .table-input, .table-select {
-            width: 100%;
-            background: transparent;
-            border: 1px solid transparent;
-            border-radius: 6px;
-            padding: 6px 8px;
-            font-size: 0.875rem;
-            color: #334155;
-            transition: all 0.15s ease;
-            outline: none;
-        }
-
-        .table-input:hover, .table-select:hover {
-            background-color: #f1f5f9; /* slate-100 */
-        }
-
-        .table-input:focus, .table-select:focus {
-            background-color: white;
-            border-color: #6366f1; /* indigo-500 */
-            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-        }
-
-        .table-input:read-only, .table-select:disabled {
-            color: #94a3b8;
-            cursor: default;
-        }
-        
-        .table-input:read-only:hover {
-            background: transparent;
-        }
-
-        /* Row Styling */
-        .employee-row-start {
-            /* border-top: 1px solid #e2e8f0; */
-        }
-        
-        /* Separation between families */
-        .employee-row-start td {
-            border-top: 1px solid #cbd5e1;
-            padding-top: 12px;
-            padding-bottom: 4px;
-        }
-        
-        .dependent-row td {
-            padding-top: 2px;
-            padding-bottom: 2px;
-        }
-        
-        /* Duplicate Row Highlight */
-        .duplicate-row td {
-            background-color: #fef3c7 !important; /* amber-100 */
-        }
-        
-        /* Ensure checkboxes are centered */
-        td.text-center {
-            vertical-align: middle;
-        }
-
-        /* Custom Checkbox Look */
-        input[type="checkbox"] {
-            accent-color: #4f46e5;
-            cursor: pointer;
-            width: 1.1rem;
-            height: 1.1rem;
-        }
-
-        /* Action Buttons */
-        .icon-btn {
-            padding: 6px;
-            border-radius: 8px;
-            transition: all 0.2s;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .icon-btn:hover {
-            transform: translateY(-1px);
-        }
-        .icon-btn:disabled {
-            opacity: 0.4;
-            cursor: not-allowed;
-            transform: none;
-        }
-        
-        .btn-primary {
-            background: linear-gradient(to bottom right, #4f46e5, #4338ca);
-            color: white;
-            box-shadow: 0 2px 5px rgba(79, 70, 229, 0.3);
-        }
-        .btn-primary:hover {
-            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.4);
-        }
-        
-        /* Animation */
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(5px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fade-in {
-            animation: fadeIn 0.3s ease-out forwards;
-        }
-        
-        /* Toast Animation */
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-        .toast-slide-in {
-            animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-        
-        /* Fill Down Button */
-        .fill-down-btn {
-            opacity: 0;
-            transition: opacity 0.2s;
-            cursor: pointer;
-            margin-left: 4px;
-            color: #94a3b8;
-        }
-        th:hover .fill-down-btn {
-            opacity: 1;
-        }
-        .fill-down-btn:hover {
-            color: #4f46e5;
-        }
-        
-        /* --- MOBILE CARD VIEW CSS --- */
-        @media (max-width: 1024px) {
-            /* Hide Header */
-            .census-table thead { display: none; }
-            
-            /* Block Layout */
-            .census-table, .census-table tbody, .census-table tr, .census-table td {
-                display: block;
-                width: 100%;
-            }
-            
-            /* Card Style for Rows */
-            .census-table tr {
-                margin-bottom: 1rem;
-                border: 1px solid #e2e8f0;
-                border-radius: 0.75rem;
-                background: white;
-                box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-                overflow: hidden;
-            }
-            
-            /* Dependent Row indentation/styling */
-            .census-table tr.dependent-row {
-                margin-left: 1rem;
-                width: calc(100% - 1rem);
-                border-left: 4px solid #e2e8f0;
-            }
-
-            /* Cell Formatting */
-            .census-table td {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 0.5rem 1rem;
-                border-bottom: 1px solid #f1f5f9;
-                text-align: right;
-                min-height: 3rem; /* Ensure height for inputs */
-            }
-            
-            .census-table td:last-child {
-                border-bottom: none;
-            }
-            
-            /* Disable Sticky on Mobile */
-            .sticky-col {
-                position: static !important;
-                box-shadow: none !important;
-            }
-            
-            /* Labels from data attributes */
-            .census-table td::before {
-                content: attr(data-label);
-                font-weight: 700;
-                text-transform: uppercase;
-                font-size: 0.65rem;
-                color: #94a3b8;
-                text-align: left;
-                flex-shrink: 0;
-                margin-right: 1rem;
-                width: 30%; /* Fixed width for labels for alignment */
-            }
-            
-            /* Specific Cell Tweaks */
-            .census-table td.action-cell {
-                background-color: #f8fafc;
-                border-bottom: 1px solid #e2e8f0;
-                justify-content: flex-end;
-                padding: 0.5rem;
-            }
-            .census-table td.action-cell::before { display: none; }
-            
-            /* Hide spacing cells used in desktop layout */
-            .desktop-spacer { display: none !important; }
-            
-            /* Input widths on mobile */
-            .table-input, .table-select {
-                text-align: right;
-                background-color: rgba(248, 250, 252, 0.5);
-            }
-            .table-input:focus, .table-select:focus {
-                text-align: left;
-                background-color: white;
-            }
-            
-            /* Fix checkbox alignment */
-            input[type="checkbox"] {
-                margin-left: auto;
-            }
-            
-            /* Badge positioning fix for mobile flex layout */
-            .age-badge {
-                top: 50%;
-                right: 2rem; /* Move left of the chevron */
-            }
-        }
-    </style>
-</head>
-<body class="flex flex-col h-full text-slate-700 overflow-hidden">
-
-    <!-- Version Badge -->
-    <div class="fixed bottom-2 right-2 text-[10px] text-slate-300 font-mono z-50 select-none">
-        v.1.3.16
-    </div>
-    
-    <!-- Toast Notification Area -->
-    <div id="toastContainer" class="fixed top-4 right-4 z-[200] flex flex-col gap-2 pointer-events-none"></div>
-
-    <!-- Top Navigation / Header -->
-    <header class="bg-white border-b border-slate-200 flex-shrink-0 z-30 relative">
-        <!-- Updated Container: Stacking layout for mobile, Row for desktop -->
-        <div class="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-3 lg:py-0 lg:h-16 flex flex-col lg:flex-row items-center justify-between gap-4 lg:gap-0">
-            
-            <!-- Brand -->
-            <div class="flex items-center gap-3 w-full lg:w-auto justify-center lg:justify-start">
-                <div class="bg-indigo-600 text-white p-1.5 rounded-lg shadow-lg shadow-indigo-200 flex-shrink-0">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                    </svg>
-                </div>
-                <div>
-                    <h1 class="text-lg font-bold text-slate-900 leading-tight tracking-tight">Quick-Entry Census</h1>
-                    <div class="flex items-center gap-2 justify-center lg:justify-start">
-                        <p class="text-xs text-slate-500">Rapid Data Collection</p>
-                        <!-- Zip Status -->
-                        <span id="zip-loading-status" class="hidden text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 flex items-center gap-1">
-                            <svg class="animate-spin h-2 w-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Loading Data...
-                        </span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Header Actions (Unified Import & Save) -->
-            <!-- Updated Actions Container: Wrap on mobile, align right on desktop -->
-            <div class="flex items-center gap-3 flex-wrap justify-center lg:justify-end w-full lg:w-auto">
-                 <button id="clearDataBtn" class="text-slate-400 hover:text-rose-600 text-xs font-medium px-2 py-1 hover:bg-rose-50 rounded transition-colors" title="Clear all data">
-                    Clear Data
-                 </button>
-                 
-                 <div class="h-6 w-px bg-slate-200 mx-1"></div>
-                 
-                 <button id="shortcutsBtn" class="text-slate-400 hover:text-slate-600 p-2 rounded-full hover:bg-slate-100 transition-colors" title="Keyboard Shortcuts">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" style="display:none;" /> <!-- Hidden artifact -->
-                        <rect x="2" y="6" width="20" height="12" rx="2" />
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h.01M10 14h.01M14 14h.01M18 14h.01" />
-                    </svg>
-                </button>
-
-                <div class="h-6 w-px bg-slate-200 mx-1"></div>
-
-                 <!-- Unified Import Button -->
-                 <div class="flex items-center">
-                    <input type="file" id="unifiedFile" class="hidden" accept=".csv">
-                    <div class="flex items-center bg-indigo-50 rounded-lg border border-indigo-200 overflow-hidden">
-                        <button onclick="document.getElementById('unifiedFile').click()" class="text-indigo-600 hover:bg-indigo-100 px-3 py-2 text-sm font-medium transition-colors flex items-center gap-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                            Import
-                        </button>
-                        <div class="w-px h-4 bg-indigo-200"></div>
-                        <button id="downloadTemplateBtn" class="text-indigo-600 hover:bg-indigo-100 px-2 py-2 transition-colors" title="Download Blank Template">
-                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                        </button>
-                    </div>
-                 </div>
-                
-                <button id="saveCsvBtn" class="btn-primary px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                    Export
-                </button>
-            </div>
-        </div>
-    </header>
-
-    <!-- Toolbar Area -->
-    <div class="max-w-[1920px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 flex-shrink-0">
-        
-        <!-- Restore Bar -->
-        <div id="restoreBar" class="hidden mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between shadow-sm">
-            <div class="flex items-center gap-3">
-                <div class="bg-amber-100 p-1.5 rounded-full text-amber-600">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
-                </div>
-                <p class="text-sm text-amber-800 font-medium">Unsaved changes detected from a previous session.</p>
-            </div>
-            <div class="flex gap-2">
-                <button id="restoreBtn" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium rounded-md shadow-sm transition-colors">Restore Data</button>
-                <button id="dismissRestoreBtn" class="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 text-xs font-medium rounded-md shadow-sm transition-colors">Discard</button>
-            </div>
-        </div>
-
-        <!-- Toolbar -->
-        <!-- Updated Layout: Vertical stack on mobile, horizontal on desktop -->
-        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-3 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
-            
-            <!-- Group 1: Actions & Search -->
-            <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-                <button id="addEmployeeBtn" class="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors disabled:opacity-50 disabled:cursor-wait" disabled>
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
-                    <span class="hidden sm:inline">Add Employee</span>
-                    <span class="sm:hidden">Add</span>
-                </button>
-                
-                <div class="h-6 w-px bg-slate-200 hidden sm:block"></div>
-                
-                <button id="toggleAllBtn" class="flex-shrink-0 text-slate-600 hover:text-indigo-600 hover:bg-slate-50 px-3 py-2 rounded-lg text-sm font-medium transition-colors" data-state="collapsed">
-                    Expand All
-                </button>
-                
-                <!-- Search Bar (Grows on mobile) -->
-                <div class="relative flex-grow sm:flex-grow-0 w-full sm:w-auto min-w-[160px]">
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <svg class="h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
-                        </svg>
-                    </div>
-                    <input type="text" id="searchInput" class="pl-9 pr-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:w-48 bg-slate-50 focus:bg-white transition-colors" placeholder="Search...">
-                </div>
-            </div>
-
-            <!-- Group 2: KPIs (Centered on mobile) -->
-            <div class="flex items-center justify-center gap-4 bg-slate-50 px-4 py-2 rounded-lg border border-slate-200 text-sm w-full lg:w-auto">
-                <div class="flex items-center gap-2 text-slate-600" title="Total Employees">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                    <span class="font-bold text-slate-900" id="kpi-employees">0</span>
-                    <span class="text-xs uppercase font-bold text-slate-400 tracking-wide">EE</span>
-                </div>
-                <div class="w-px h-4 bg-slate-300"></div>
-                <div class="flex items-center gap-2 text-slate-600" title="Total Dependents">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                    <span class="font-bold text-slate-900" id="kpi-dependents">0</span>
-                    <span class="text-xs uppercase font-bold text-slate-400 tracking-wide">Dep</span>
-                </div>
-                <button id="kpi-errors-container" class="hidden flex items-center gap-2 border-l border-slate-300 pl-4 ml-2 hover:bg-rose-50 rounded px-1 transition-colors cursor-pointer" title="Click to find first error">
-                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                     <span class="font-bold text-rose-600" id="kpi-errors">0</span>
-                     <span class="text-xs uppercase font-bold text-rose-400 tracking-wide">Err</span>
-                </button>
-            </div>
-            
-            <!-- Group 3: Settings (Wrap on mobile) -->
-            <div class="flex flex-wrap justify-center lg:justify-end items-center gap-3 bg-slate-50 px-4 py-2 rounded-lg border border-slate-200 w-full lg:w-auto ml-auto xl:ml-0">
-                <div class="flex flex-col items-start">
-                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Adult Prem</label>
-                    <div class="flex items-center gap-1">
-                        <span class="text-slate-400 text-xs">$</span>
-                        <input type="number" id="adultPremium" class="bg-transparent w-16 text-sm font-semibold text-slate-700 focus:outline-none" value="850" min="0">
-                    </div>
-                </div>
-                <div class="w-px h-6 bg-slate-300 hidden sm:block"></div>
-                <div class="flex flex-col items-start">
-                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Child Prem</label>
-                    <div class="flex items-center gap-1">
-                        <span class="text-slate-400 text-xs">$</span>
-                        <input type="number" id="childPremium" class="bg-transparent w-16 text-sm font-semibold text-slate-700 focus:outline-none" value="450" min="0">
-                    </div>
-                </div>
-                <div class="w-px h-6 bg-slate-300 hidden sm:block"></div>
-                <div class="flex flex-col items-start">
-                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Emp Contrib.</label>
-                    <div class="flex items-center gap-1">
-                        <input type="number" id="employerContribution" class="bg-transparent w-12 text-sm font-semibold text-slate-700 focus:outline-none" value="50" min="0" max="100">
-                        <span class="text-slate-400 text-xs">%</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Legend (Hidden on mobile) -->
-            <div class="hidden xl:flex items-center gap-4 text-xs text-slate-400 px-2">
-                <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-indigo-500"></span> Calculated</div>
-                <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-slate-300"></span> Read Only</div>
-                <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded bg-amber-100 border border-amber-200"></span> Duplicate</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Main Content (Table) -->
-    <div class="flex-grow overflow-hidden px-4 sm:px-6 lg:px-8 pb-4">
-        <div class="h-full bg-white rounded-xl shadow border border-slate-200 flex flex-col overflow-hidden relative">
-            
-            <!-- Empty State -->
-            <div id="noFamiliesMessage" class="absolute inset-0 z-0 flex flex-col items-center justify-center text-center bg-slate-50/50 hidden">
-                <div class="bg-white p-6 rounded-full shadow-sm mb-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-indigo-200" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-                </div>
-                <h3 class="text-lg font-semibold text-slate-900">No employees added yet</h3>
-                <p class="text-slate-500 max-w-sm mt-2">Get started by adding an employee manually or importing a census file.</p>
-                <p class="text-xs text-slate-400 mt-1">Pro Tip: You can also paste Excel data directly (Ctrl+V)</p>
-                <button onclick="document.getElementById('addEmployeeBtn').click()" class="mt-6 text-indigo-600 font-medium hover:underline">Create first entry &rarr;</button>
-            </div>
-
-            <!-- The Table -->
-            <div class="overflow-auto h-full z-10">
-                <table class="w-full text-left census-table border-collapse">
-                    <thead>
-                        <tr>
-                            <th class="bg-slate-50 pl-4 w-[140px]">Actions</th>
-                            <th class="w-8"></th> <!-- Toggle -->
-                            <th class="min-w-[220px] sticky-col">Name</th>
-                            <th class="min-w-[110px]">Relation</th>
-                            <th class="min-w-[130px]">DoB</th>
-                            <th class="min-w-[90px]">Gen</th>
-                            <th class="min-w-[90px]">
-                                Zip
-                                <button class="fill-down-btn" onclick="fillDownColumn('row-zip')" title="Fill first Zip down to all rows">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 13l-7 7-7-7m14-8l-7 7-7-7" /></svg>
-                                </button>
-                            </th>
-                            <th class="min-w-[140px]">County</th>
-                            <th class="min-w-[70px]">State</th>
-                            <th class="min-w-[140px]">Phone</th>
-                            <th class="min-w-[180px]">Email</th>
-                            <th class="min-w-[120px]">
-                                Income
-                                <button class="fill-down-btn" onclick="fillDownColumn('row-income')" title="Fill first Income down">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 13l-7 7-7-7m14-8l-7 7-7-7" /></svg>
-                                </button>
-                            </th>
-                            <th class="min-w-[120px]">
-                                Class
-                                <button class="fill-down-btn" onclick="fillDownColumn('row-ichra')" title="Fill first Class down">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 13l-7 7-7-7m14-8l-7 7-7-7" /></svg>
-                                </button>
-                            </th>
-                            <th class="text-center w-12" title="COBRA">Cb</th>
-                            <th class="text-center w-12" title="Retiree">Rt</th>
-                            <th class="text-center w-12" title="Waive Coverage">Wv</th>
-                            <th class="text-center w-12" title="Smoker">Sm</th>
-                            <th class="min-w-[130px]">Tobacco Date</th>
-                            <th class="min-w-[110px]">Total Prem.</th>
-                            <th class="min-w-[100px]">Emp. Share</th>
-                            <th class="min-w-[100px]">Ee. Share</th>
-                            <th class="text-center w-12" title="Manual Override">Man</th>
-                        </tr>
-                    </thead>
-                    <tbody id="employeeTableBody" class="bg-white divide-y divide-slate-100">
-                        <!-- Rows Injected Here -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-
-    <!-- ================= TEMPLATES ================= -->
-
-    <template id="familyBlockTemplate">
-        <tr class="family-row employee-row-start group animate-fade-in bg-white" data-relation="Employee">
-            <td class="align-top pl-3 py-3 action-cell" data-label="Actions">
-                <div class="flex items-center gap-1 opacity-40 group-hover:opacity-100 transition-opacity justify-end w-full">
-                    <button class="open-form-btn icon-btn text-slate-500 hover:text-indigo-600 hover:bg-indigo-50" title="Edit in form view">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                    </button>
-                    <button class="add-dependent-btn icon-btn text-slate-500 hover:text-teal-600 hover:bg-teal-50" title="Add Dependent (Ctrl+Shift+D)">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
-                    </button>
-                    <button class="remove-family-btn icon-btn text-slate-500 hover:text-rose-600 hover:bg-rose-50" title="Remove Family">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                    </button>
-                </div>
-                <input type="hidden" class="row-fips" value="">
-            </td>
-            <td class="align-top py-3 text-center desktop-spacer">
-                <button class="toggle-family-btn p-1 rounded-full hover:bg-slate-100 transition-transform duration-200" data-state="collapsed">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
-                </button>
-            </td>
-            <td class="align-top px-1 py-2 sticky-col" data-label="Name">
-                <div class="flex gap-1 w-full">
-                    <input type="text" class="row-first table-input font-medium" placeholder="First Name">
-                    <input type="text" class="row-last table-input font-medium" placeholder="Last Name">
-                </div>
-            </td>
-            <td class="align-top px-1 py-2" data-label="Relation"><input type="text" class="row-relation table-input text-slate-500" value="Employee" readonly tabindex="-1"></td>
-            <td class="align-top px-1 py-2" data-label="Date of Birth">
-                <div class="relative w-full">
-                    <input type="date" class="row-dob table-input">
-                    <span class="age-badge absolute right-8 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-mono pointer-events-none"></span>
-                </div>
-            </td>
-            <td class="align-top px-1 py-2" data-label="Gender">
-                <select class="row-gender table-select">
-                    <option value="" disabled selected>--</option>
-                    <option value="M">Male</option>
-                    <option value="F">Female</option>
-                </select>
-            </td>
-            <td class="align-top px-1 py-2" data-label="Zip Code"><input type="text" class="row-zip table-input" placeholder="Zip"></td>
-            <td class="align-top px-1 py-2 county-cell-container" data-label="County"><input type="text" class="row-county table-input" placeholder="County" readonly tabindex="-1"></td>
-            <td class="align-top px-1 py-2" data-label="State"><input type="text" class="row-state table-input" placeholder="St" readonly tabindex="-1"></td>
-            <td class="align-top px-1 py-2" data-label="Phone"><input type="tel" class="row-phone table-input" placeholder="Phone"></td>
-            <td class="align-top px-1 py-2" data-label="Email"><input type="email" class="row-email table-input" placeholder="Email"></td>
-            <td class="align-top px-1 py-2" data-label="Income"><input type="number" class="row-income table-input" placeholder="$"></td>
-            <td class="align-top px-1 py-2" data-label="ICHRA Class">
-                <select class="row-ichra table-select">
-                    <option value="" disabled selected>-- Class --</option>
-                    <option>Full Time</option>
-                    <option>Part Time</option>
-                    <option>Salary</option>
-                    <option>Hourly</option>
-                </select>
-            </td>
-            <td class="align-top text-center py-2" data-label="COBRA"><input type="checkbox" class="row-cobra"></td>
-            <td class="align-top text-center py-2" data-label="Retiree"><input type="checkbox" class="row-retiree"></td>
-            <td class="align-top text-center py-2" data-label="Waive Coverage"><input type="checkbox" class="row-waive"></td>
-            <td class="align-top text-center py-2" data-label="Smoker"><input type="checkbox" class="row-smoker"></td>
-            <td class="align-top px-1 py-2" data-label="Tobacco Date"><input type="date" class="row-tobaccoDate table-input text-xs" readonly></td>
-            
-            <!-- Premiums -->
-            <td class="align-top px-1 py-2" data-label="Total Premium">
-                <span class="row-premium-total block py-1.5 px-2 text-sm font-semibold text-slate-800">$0.00</span>
-                <input type="number" class="row-premium-total-manual manual-premium-input table-input hidden" placeholder="Total">
-            </td>
-            <td class="align-top px-1 py-2" data-label="Employer Share">
-                <span class="row-premium-employer block py-1.5 px-2 text-sm text-slate-500">$0.00</span>
-                <input type="number" class="row-premium-employer-manual manual-premium-input table-input hidden" placeholder="Emp.">
-            </td>
-            <td class="align-top px-1 py-2" data-label="Employee Share">
-                <span class="row-premium-employee block py-1.5 px-2 text-sm font-medium text-indigo-600">$0.00</span>
-                <input type="number" class="row-premium-employee-manual manual-premium-input table-input hidden" placeholder="Ee." readonly>
-            </td>
-            <td class="align-top text-center py-2" data-label="Manual Override"><input type="checkbox" class="row-manual-premium" title="Manual Override"></td>
-        </tr>
-    </template>
-
-    <template id="dependentRowTemplate">
-        <tr class="family-row dependent-row group bg-slate-50/30" data-dep-index="0">
-            <td class="align-top pl-3 py-1 action-cell" data-label="Actions">
-                <div class="flex items-center justify-end w-full">
-                    <!-- FIX: Removed 'disabled' attribute so button is always clickable -->
-                    <button class="clear-dep-btn icon-btn h-6 w-6 text-slate-300 hover:text-rose-500 ml-2 opacity-0 group-hover:opacity-100" title="Remove Dependent">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
-                </div>
-            </td>
-            <td class="desktop-spacer"></td> <!-- indent -->
-            <td class="align-top px-1 py-1 sticky-col" data-label="Name">
-                <div class="flex gap-1 w-full">
-                    <input type="text" class="row-first table-input" placeholder="First Name" readonly>
-                    <input type="text" class="row-last table-input text-slate-500" placeholder="Last Name" readonly>
-                </div>
-            </td>
-            <td class="align-top px-1 py-1" data-label="Relation">
-                <select class="row-relation table-select text-indigo-600 font-medium">
-                    <option value="">+ Add</option>
-                    <option value="Spouse">Spouse</option>
-                    <option value="Child">Child</option>
-                </select>
-            </td>
-            <td class="align-top px-1 py-1" data-label="Date of Birth">
-                <div class="relative w-full">
-                    <input type="date" class="row-dob table-input" readonly>
-                    <span class="age-badge absolute right-8 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 font-mono pointer-events-none"></span>
-                </div>
-            </td>
-            <td class="align-top px-1 py-1" data-label="Gender">
-                <select class="row-gender table-select" disabled>
-                    <option value="" disabled selected>--</option>
-                    <option value="M">Male</option>
-                    <option value="F">Female</option>
-                </select>
-            </td>
-            <!-- Empty cells for formatting - HIDDEN ON MOBILE via CSS class -->
-            <td class="desktop-spacer"></td><td class="county-cell-container desktop-spacer"></td><td class="desktop-spacer"></td><td class="desktop-spacer"></td><td class="desktop-spacer"></td><td class="desktop-spacer"></td><td class="desktop-spacer"></td>
-            <td class="desktop-spacer"></td><td class="desktop-spacer"></td><td class="desktop-spacer"></td><td class="desktop-spacer"></td><td class="desktop-spacer"></td><td class="desktop-spacer"></td><td class="desktop-spacer"></td><td class="desktop-spacer"></td><td class="desktop-spacer"></td>
-        </tr>
-    </template>
-
-
-    <!-- ================= MODALS ================= -->
-
-    <!-- Generic Alert Modal -->
-    <div id="alertModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden items-center justify-center p-4 z-[100]">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 transform transition-all scale-100">
-            <h3 id="alertTitle" class="text-lg font-bold text-slate-900">Notice</h3>
-            <p id="alertMessage" class="mt-2 text-sm text-slate-600 leading-relaxed">Message goes here.</p>
-            <div class="mt-6 flex justify-end">
-                <button id="alertOkBtn" class="btn-primary px-4 py-2 rounded-lg text-sm font-medium">OK</button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Confirmation Modal -->
-    <div id="confirmModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden items-center justify-center p-4 z-[100]">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6">
-            <h3 id="confirmTitle" class="text-lg font-bold text-slate-900">Are you sure?</h3>
-            <p id="confirmMessage" class="mt-2 text-sm text-slate-600 leading-relaxed">This action cannot be undone.</p>
-            <div class="mt-6 flex justify-end gap-3">
-                 <button id="confirmCancelBtn" class="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 text-sm font-medium">Cancel</button>
-                <button id="confirmOkBtn" class="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm">Confirm</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Keyboard Shortcuts Modal -->
-    <div id="shortcutsModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden items-center justify-center p-4 z-[100]">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
-            <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <h3 class="text-lg font-bold text-slate-900">Keyboard Shortcuts</h3>
-                <button id="shortcutsCloseBtn" class="text-slate-400 hover:text-slate-600"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
-            </div>
-            <div class="p-6 space-y-3">
-                <div class="flex items-center justify-between">
-                    <span class="text-sm text-slate-600">Add New Employee</span>
-                    <kbd class="bg-slate-100 border border-slate-200 rounded px-2 py-1 text-xs font-mono text-slate-500">Ctrl + Shift + A</kbd>
-                </div>
-                <div class="flex items-center justify-between">
-                    <span class="text-sm text-slate-600">Add Dependent</span>
-                    <kbd class="bg-slate-100 border border-slate-200 rounded px-2 py-1 text-xs font-mono text-slate-500">Ctrl + Shift + D</kbd>
-                </div>
-                <div class="flex items-center justify-between">
-                    <span class="text-sm text-slate-600">Move Up/Down</span>
-                    <kbd class="bg-slate-100 border border-slate-200 rounded px-2 py-1 text-xs font-mono text-slate-500">↑ / ↓</kbd>
-                </div>
-                <div class="flex items-center justify-between">
-                    <span class="text-sm text-slate-600">Next Field</span>
-                    <kbd class="bg-slate-100 border border-slate-200 rounded px-2 py-1 text-xs font-mono text-slate-500">Enter</kbd>
-                </div>
-                 <div class="flex items-center justify-between">
-                    <span class="text-sm text-slate-600">Import Paste</span>
-                    <kbd class="bg-slate-100 border border-slate-200 rounded px-2 py-1 text-xs font-mono text-slate-500">Ctrl + V</kbd>
-                </div>
-            </div>
-            <div class="p-4 bg-slate-50 flex justify-end">
-                <button id="shortcutsOkBtn" class="btn-primary px-4 py-2 rounded-lg text-sm">Got it</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- AI Mapper Modal -->
-    <div id="mapperModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center p-4 z-[150]">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full flex flex-col h-[90vh]">
-            <div class="p-6 border-b border-slate-100 bg-slate-50 rounded-t-2xl flex-shrink-0">
-                <div class="flex justify-between items-start">
-                    <div>
-                        <h3 class="text-xl font-bold text-slate-900">Import & Map Data</h3>
-                        <p class="mt-1 text-sm text-slate-500">The file you uploaded doesn't match the standard format. Please map the columns below.</p>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="p-6 border-b border-slate-100 bg-white flex-shrink-0">
-                <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-4 flex flex-col md:flex-row gap-4 items-end">
-                    <div class="flex-grow w-full">
-                        <label for="geminiApiKey" class="block text-xs font-bold text-indigo-800 uppercase mb-1">Gemini API Key (Optional)</label>
-                        <input type="password" id="geminiApiKey" class="block w-full rounded-lg border-indigo-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2" placeholder="Paste key for AI features...">
-                    </div>
-                    <button id="autoMapBtn" class="flex-shrink-0 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                        Auto-map with AI
-                    </button>
-                </div>
-                <p id="autoMapStatus" class="mt-2 text-xs text-slate-500 font-medium h-4"></p>
-            </div>
-
-            <div class="p-6 overflow-y-auto flex-grow bg-white">
-                <div id="mapperGrid" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Mappings injected here -->
-                </div>
-            </div>
-            
-            <div class="p-5 bg-slate-50 border-t border-slate-200 flex justify-end gap-3 rounded-b-2xl flex-shrink-0">
-                 <button id="mapperCancelBtn" class="px-5 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium text-sm">Cancel</button>
-                <button id="mapperImportBtn" class="btn-primary px-6 py-2 rounded-lg text-sm font-medium">Import Data</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Family Form Modal -->
-    <div id="familyFormModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center p-4 z-[150]">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full flex flex-col h-[85vh]">
-            <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-2xl flex-shrink-0">
-                <h3 class="text-lg font-bold text-slate-900">Edit Family Details</h3>
-                <input type="hidden" id="familyFormModalFamilyId">
-                <button id="familyFormModalClose" class="text-slate-400 hover:text-slate-600"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
-            </div>
-
-            <div id="familyFormModalContent" class="p-6 overflow-y-auto flex-grow space-y-8 bg-white">
-                <!-- Form Content Injected Here -->
-            </div>
-            
-            <div class="p-5 bg-slate-50 border-t border-slate-200 flex justify-between items-center rounded-b-2xl flex-shrink-0">
-                 <button id="familyFormModalAddDep" class="text-indigo-600 hover:text-indigo-700 text-sm font-medium flex items-center gap-1">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
-                    Add Dependent
-                 </button>
-                 <div class="flex gap-3">
-                    <button id="familyFormModalCancel" class="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 text-sm font-medium">Cancel</button>
-                    <button id="familyFormModalSave" class="btn-primary px-6 py-2 rounded-lg text-sm font-medium">Save Changes</button>
-                 </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- JAVASCRIPT LOGIC (PRESERVED) -->
-    <script>
         // --- DATA ---
         let zipLookup = new Map();
         
@@ -826,11 +8,14 @@
         const API_KEY_LS_KEY = 'geminiApiKey';
         
         const APP_FIELDS = {
+            familyId: { label: 'Family ID', guess: ['family id', 'group id', 'id', 'family'] },
+            relation: { label: 'Relation', guess: ['relation', 'relationship', 'role', 'type'] },
             first: { label: 'First Name', guess: ['first', 'fname', 'first name'] },
             last: { label: 'Last Name', guess: ['last', 'lname', 'last name', 'surname'] },
             dob: { label: 'DoB', guess: ['dob', 'date of birth', 'birthday'] },
             gender: { label: 'Gender', guess: ['gender', 'sex'] },
             zip: { label: 'Zip', guess: ['zip', 'zipcode', 'postal code'] },
+            county: { label: 'County', guess: ['county', 'parish'] },
             phone: { label: 'Phone', guess: ['phone', 'phone number', 'mobile'] },
             email: { label: 'Email', guess: ['email', 'email address'] },
             income: { label: 'Income', guess: ['income', 'household income', 'salary'] },
@@ -866,6 +51,9 @@
         // START: Added form modal refs
         let familyFormModal, familyFormModalFamilyId, familyFormModalContent, familyFormModalSave, familyFormModalCancel, familyFormModalClose, familyFormModalAddDep;
         // END: Added form modal refs
+
+        let makeDependentModal, makeDependentSourceFamilyId, makeDependentSelect, makeDependentCancelBtn, makeDependentOkBtn;
+        let welcomeModal, helpBtn, closeWelcomeBtn, dontShowWelcomeCheck;
 
 
         /**
@@ -918,6 +106,17 @@
             familyFormModalClose = document.getElementById('familyFormModalClose');
             familyFormModalAddDep = document.getElementById('familyFormModalAddDep');
             // END: Added form modal refs
+
+            makeDependentModal = document.getElementById('makeDependentModal');
+            makeDependentSourceFamilyId = document.getElementById('makeDependentSourceFamilyId');
+            makeDependentSelect = document.getElementById('makeDependentSelect');
+            makeDependentCancelBtn = document.getElementById('makeDependentCancelBtn');
+            makeDependentOkBtn = document.getElementById('makeDependentOkBtn');
+            
+            welcomeModal = document.getElementById('welcomeModal');
+            helpBtn = document.getElementById('helpBtn');
+            closeWelcomeBtn = document.getElementById('closeWelcomeBtn');
+            dontShowWelcomeCheck = document.getElementById('dontShowWelcomeCheck');
         }
         
         // --- TOAST NOTIFICATION ---
@@ -1442,6 +641,43 @@
             empRow.querySelector('.row-income').addEventListener('input', (e) => validateRequired(e.currentTarget));
             empRow.querySelector('.row-smoker').addEventListener('change', () => toggleTobaccoDate(empRow));
 
+            empRow.querySelector('.make-dependent-btn').addEventListener('click', () => {
+                const currentFamilyId = empRow.dataset.familyId;
+                const allEmployees = document.querySelectorAll('.employee-row-start');
+                
+                if (allEmployees.length <= 1) {
+                    showAlert('No other employees to attach this dependent to.');
+                    return;
+                }
+                
+                // Populate select
+                makeDependentSelect.innerHTML = '<option value="">-- Select Employee --</option>';
+                allEmployees.forEach(row => {
+                    const famId = row.dataset.familyId;
+                    if (famId !== currentFamilyId) {
+                        const first = row.querySelector('.row-first').value || 'Unknown';
+                        const last = row.querySelector('.row-last').value || '';
+                        
+                        const option = document.createElement('option');
+                        option.value = famId;
+                        option.textContent = `${first} ${last} (ID: ${famId})`;
+                        makeDependentSelect.appendChild(option);
+                    }
+                });
+                
+                let prevRow = empRow.previousElementSibling;
+                while (prevRow && !prevRow.classList.contains('employee-row-start')) {
+                    prevRow = prevRow.previousElementSibling;
+                }
+                if (prevRow) {
+                    makeDependentSelect.value = prevRow.dataset.familyId;
+                } else {
+                    makeDependentSelect.value = '';
+                }
+                
+                makeDependentSourceFamilyId.value = currentFamilyId;
+                makeDependentModal.style.display = 'flex';
+            });
             empRow.querySelector('.remove-family-btn').addEventListener('click', async () => {
                 const confirmed = await showConfirm('Are you sure you want to remove this employee and all their dependents?');
                 if (confirmed) {
@@ -1524,6 +760,48 @@
                         newDepRow.querySelector('.row-first').focus();
                     }, 0); 
                 }
+            });
+            
+            newDepRow.querySelector('.make-employee-btn').addEventListener('click', async () => {
+                const confirmed = await showConfirm('Extract this dependent into a standalone Employee row?');
+                if (!confirmed) return;
+                
+                const first = newDepRow.querySelector('.row-first').value;
+                const last = newDepRow.querySelector('.row-last').value;
+                const dob = newDepRow.querySelector('.row-dob').value;
+                const gender = newDepRow.querySelector('.row-gender').value;
+                
+                // Get parent employee household data
+                const zip = empRow.querySelector('.row-zip').value;
+                const county = empRow.querySelector('.row-county').value;
+                const state = empRow.querySelector('.row-state').value;
+                const fips = empRow.querySelector('.row-fips').value;
+                const phone = empRow.querySelector('.row-phone').value;
+                const email = empRow.querySelector('.row-email').value;
+                const income = empRow.querySelector('.row-income').value;
+                
+                const empData = {
+                    first, last, dob, gender,
+                    zip, county, state, fips, phone, email, income
+                };
+                
+                // Remove dependent row
+                const depIndex = newDepRow.dataset.depIndex;
+                newDepRow.remove();
+                if (familyFormModal.style.display === 'flex' && familyFormModalFamilyId.value === familyId) {
+                    const formDep = familyFormModalContent.querySelector(`[data-dep-index="${depIndex}"]`);
+                    if (formDep) formDep.remove();
+                }
+                
+                calculateFamilyPremium(familyId);
+                empRow.querySelector('.add-dependent-btn').disabled = false;
+                if (familyFormModalFamilyId.value === familyId) familyFormModalAddDep.disabled = false;
+                
+                // Create new family block
+                addFamilyBlock(empData, [], false);
+                
+                isDirty = true;
+                saveToLocalStorage();
             });
             
             newDepRow.querySelector('.clear-dep-btn').addEventListener('click', () => {
@@ -2212,6 +1490,14 @@
             return str; // Return original if it doesn't match standard lengths
         }
 
+        function normalizeGender(genderStr) {
+            if (!genderStr) return '';
+            const g = String(genderStr).trim().toUpperCase();
+            if (g === 'MALE' || g === 'M') return 'M';
+            if (g === 'FEMALE' || g === 'F') return 'F';
+            return '';
+        }
+
         // --- CSV LOAD/SAVE FUNCTIONS ---
 
         // START: UNIFIED IMPORT LOGIC
@@ -2233,73 +1519,95 @@
             const file = e.target.files[0];
             if (!file) return;
 
-            Papa.parse(file, {
-                header: true,
-                skipEmptyLines: true,
-                transformHeader: (header) => header.trim(),
-                preview: 20, // Read first 20 lines to sniff format
-                complete: (previewResults) => {
-                    if (!previewResults.data || previewResults.data.length === 0) {
-                        showToast('File appears empty or unreadable.', 'error');
-                        return;
-                    }
+            const processData = (dataToParse) => {
+                Papa.parse(dataToParse, {
+                    header: true,
+                    skipEmptyLines: true,
+                    transformHeader: (header) => header.trim(),
+                    preview: 20, // Read first 20 lines to sniff format
+                    complete: (previewResults) => {
+                        if (!previewResults.data || previewResults.data.length === 0) {
+                            showToast('File appears empty or unreadable.', 'error');
+                            return;
+                        }
 
-                    const headers = previewResults.meta.fields;
-                    
-                    // Format Detection Logic
-                    const requiredStandardColumns = ['Family ID', 'ICHRA Class', 'Relation'];
-                    const isStandardFormat = requiredStandardColumns.every(col => headers.includes(col));
-
-                    if (isStandardFormat) {
-                        // Path A: Standard Load - Parse FULL file now
-                        showToast('Standard Census Pro format detected. Loading...', 'success');
+                        const headers = previewResults.meta.fields;
                         
-                        Papa.parse(file, {
-                            header: true,
-                            skipEmptyLines: true,
-                            transformHeader: (header) => header.trim(),
-                            complete: (fullResults) => {
-                                try {
-                                    processStandardImport(fullResults.data);
-                                    unifiedFileInput.value = '';
-                                    isDirty = false;
-                                    localStorage.removeItem(AUTOSAVE_KEY);
-                                } catch (err) {
-                                    console.error(err);
-                                    showToast('Error processing data: ' + err.message, 'error');
+                        // Format Detection Logic
+                        const requiredStandardColumns = ['Family ID', 'ICHRA Class', 'Relation'];
+                        const isStandardFormat = requiredStandardColumns.every(col => headers.includes(col));
+
+                        if (isStandardFormat) {
+                            // Path A: Standard Load - Parse FULL file now
+                            showToast('Standard Census Pro format detected. Loading...', 'success');
+                            
+                            Papa.parse(dataToParse, {
+                                header: true,
+                                skipEmptyLines: true,
+                                transformHeader: (header) => header.trim(),
+                                complete: (fullResults) => {
+                                    try {
+                                        processStandardImport(fullResults.data);
+                                        unifiedFileInput.value = '';
+                                        isDirty = false;
+                                        localStorage.removeItem(AUTOSAVE_KEY);
+                                    } catch (err) {
+                                        console.error(err);
+                                        showToast('Error processing data: ' + err.message, 'error');
+                                    }
+                                },
+                                error: (err) => {
+                                    console.error('Papaparse error:', err);
+                                    showToast(`Error reading file: ${err.message}`, 'error');
                                 }
-                            },
-                            error: (err) => {
-                                console.error('Papaparse error:', err);
-                                showToast(`Error reading file: ${err.message}`, 'error');
-                            }
-                        });
-                    } else {
-                        // Path B: Open Mapper
-                        showToast('Unknown format detected. Opening Mapper...', 'info');
-                        
-                        Papa.parse(file, {
-                            header: true,
-                            skipEmptyLines: true,
-                            transformHeader: (header) => header.trim(),
-                            complete: (fullResults) => {
-                                parsedImportData = fullResults.data;
-                                parsedImportSample = fullResults.data.slice(0, 5);
-                                currentImportHeaders = fullResults.meta.fields;
-                                openMapperModal(currentImportHeaders);
-                            },
-                            error: (err) => {
-                                console.error('Papaparse error:', err);
-                                showToast(`Error reading file for mapping: ${err.message}`, 'error');
-                            }
-                        });
+                            });
+                        } else {
+                            // Path B: Open Mapper
+                            showToast('Unknown format detected. Opening Mapper...', 'info');
+                            
+                            Papa.parse(dataToParse, {
+                                header: true,
+                                skipEmptyLines: true,
+                                transformHeader: (header) => header.trim(),
+                                complete: (fullResults) => {
+                                    parsedImportData = fullResults.data;
+                                    parsedImportSample = fullResults.data.slice(0, 5);
+                                    currentImportHeaders = fullResults.meta.fields;
+                                    openMapperModal(currentImportHeaders);
+                                },
+                                error: (err) => {
+                                    console.error('Papaparse error:', err);
+                                    showToast(`Error reading file for mapping: ${err.message}`, 'error');
+                                }
+                            });
+                        }
+                    },
+                    error: (err) => {
+                        console.error('Papaparse preview error:', err);
+                        showToast(`Error reading file preview: ${err.message}`, 'error');
                     }
-                },
-                error: (err) => {
-                    console.error('Papaparse preview error:', err);
-                    showToast(`Error reading file preview: ${err.message}`, 'error');
-                }
-            });
+                });
+            };
+
+            const isExcel = file.name.match(/\.(xlsx|xls)$/i);
+            if (isExcel) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, {type: 'array'});
+                        const firstSheetName = workbook.SheetNames[0];
+                        const csvStr = XLSX.utils.sheet_to_csv(workbook.Sheets[firstSheetName]);
+                        processData(csvStr);
+                    } catch (err) {
+                        console.error(err);
+                        showToast('Error parsing Excel file.', 'error');
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            } else {
+                processData(file);
+            }
             
             unifiedFileInput.value = '';
         }
@@ -2380,7 +1688,7 @@
                     first: row['First'], 
                     last: row['Last'], 
                     dob: normalizeDate(row['DoB']), // Fix: Normalize Date
-                    gender: row['Gender'],
+                    gender: normalizeGender(row['Gender']),
                     zip: row['Zip'], 
                     county: row['County'], 
                     state: findVal(row, 'State'), 
@@ -2405,7 +1713,7 @@
                     first: dep['First'], 
                     last: dep['Last'], 
                     dob: normalizeDate(dep['DoB']), // Fix: Normalize Date
-                    gender: dep['Gender']
+                    gender: normalizeGender(dep['Gender'])
                 }));
 
                 addFamilyBlock(empData, depDataList, true);
@@ -2800,31 +2108,79 @@
             familyCounter = 0;
             let importCount = 0;
 
+            const families = {};
+            let mappedCount = 0;
+            let currentFid = `UNKNOWN_${Math.random().toString(36).substr(2, 9)}`; // Initialize a starting sequential ID
+
             parsedImportData.forEach((row, rowIndex) => {
-                const empData = {};
+                const rowData = {};
                 try {
                     for (const [appField, plan] of Object.entries(mappingPlan)) {
                         const rawValue = row[plan.sourceHeader];
                         
                         if (plan.transformFunction) {
                             const transformFn = new Function('val', `try { return (${plan.transformFunction})(val); } catch (e) { console.warn('Transform error:', e.message); return val; }`);
-                            empData[appField] = transformFn(rawValue);
+                            rowData[appField] = transformFn(rawValue);
                         } else {
-                            empData[appField] = rawValue;
+                            rowData[appField] = rawValue;
                         }
                     }
                     
-                    // Apply Normalizers to Mapped Data
-                    if (empData.dob) empData.dob = normalizeDate(empData.dob);
-                    if (empData.tobaccoDate) empData.tobaccoDate = normalizeDate(empData.tobaccoDate);
-                    if (empData.phone) empData.phone = normalizePhone(empData.phone);
+                    // Apply Normalizers
+                    if (rowData.dob) rowData.dob = normalizeDate(rowData.dob);
+                    if (rowData.tobaccoDate) rowData.tobaccoDate = normalizeDate(rowData.tobaccoDate);
+                    if (rowData.phone) rowData.phone = normalizePhone(rowData.phone);
+                    if (rowData.gender) rowData.gender = normalizeGender(rowData.gender);
                     
-                    // MODIFIED: No longer passing depDataList
-                    addFamilyBlock(empData, [], true);
-                    importCount++;
+                    // Normalize Relation
+                    let rel = rowData.relation ? String(rowData.relation).trim() : '';
+                    if (rel.toLowerCase() === 'employee') rel = 'Employee';
+                    else if (rel.toLowerCase() === 'spouse') rel = 'Spouse';
+                    else if (rel.toLowerCase() === 'child') rel = 'Child';
+                    rowData.relation = rel;
+
+                    // Normalize Family ID
+                    let fid = rowData.familyId ? String(rowData.familyId).trim() : '';
+                    if (fid) {
+                        const generatedIdPattern = /^E\d{5}[ESC]\d*$/;
+                        if (generatedIdPattern.test(fid)) {
+                             fid = fid.replace(/[ESC]\d*$/, '');
+                        }
+                        currentFid = fid; // Update the sequential tracker
+                    } else if (rel === 'Employee' || !rel) {
+                        // If it's a new employee without an ID, generate a new sequential ID
+                        currentFid = `UNKNOWN_${Math.random().toString(36).substr(2, 9)}`;
+                        rowData.relation = 'Employee';
+                    }
+                    
+                    const safeFid = currentFid;
+                    
+                    if (!families[safeFid]) {
+                        families[safeFid] = { emp: null, deps: [] };
+                    }
+                    
+                    if (rowData.relation === 'Employee') {
+                        if (!families[safeFid].emp) {
+                            families[safeFid].emp = rowData;
+                        } else {
+                            // Already have an employee for this ID, treat as dependent
+                            families[safeFid].deps.push(rowData);
+                        }
+                    } else {
+                        families[safeFid].deps.push(rowData);
+                    }
+                    
+                    mappedCount++;
                 } catch (e) {
                     console.error(`Skipping row ${rowIndex + 1} due to transformation error:`, e.message, "Row:", row);
                 }
+            });
+
+            // Process groups into UI
+            Object.values(families).forEach(fam => {
+                if (!fam.emp) return; // Must have an employee record
+                addFamilyBlock(fam.emp, fam.deps, true);
+                importCount++;
             });
             
             isDirty = true;
@@ -2899,7 +2255,7 @@ Analyze the user's data sample to create the transformation functions.
 - For dates, convert to "YYYY-MM-DD". Example: "05/15/1982" becomes "1982-05-15".
 - For gender, convert to "M" or "F". Example: "Male" becomes "M", "female" becomes "F".
 - For booleans, convert to true/false. Example: "Yes" becomes true, "No" becomes false.
-- For phone, clean the value to be *only* 10 digits. This may involve stripping non-numeric characters AND removing a leading '1' if present.
+- For phone, do NOT transform it. Return null for the transformFunction. Our system will handle phone normalization automatically.
 - If a value is already in the correct format, "transformFunction" should be null.
 - Handle potential errors gracefully (e.g., return null or original value if transform fails).`;
             // --- END: MODIFIED SYSTEM PROMPT ---
@@ -2928,7 +2284,7 @@ Please provide the JSON transformation plan.`;
                 };
             }
 
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
 
             const payload = {
                 contents: [{ parts: [{ text: userQuery }] }],
@@ -3203,7 +2559,7 @@ Please provide the JSON transformation plan.`;
          */
         async function loadZipData() {
             zipLoadingStatus.classList.remove('hidden');
-            const zipUrl = 'https://raw.githubusercontent.com/KvB-IM/Quick_Census/b4f1e7e748a3adf39d24647a181b6fc3554b53a6/FIPS_COUNTY_ZIP.json';
+            const zipUrl = '/FIPS_COUNTY_ZIP.json';
 
             try {
                 const response = await fetch(zipUrl);
@@ -3324,6 +2680,50 @@ Please provide the JSON transformation plan.`;
             familyFormModalSave.addEventListener('click', saveFamilyForm);
             familyFormModalCancel.addEventListener('click', () => familyFormModal.style.display = 'none');
             familyFormModalClose.addEventListener('click', () => familyFormModal.style.display = 'none');
+
+            // Make Dependent Modal Listeners
+            makeDependentCancelBtn.addEventListener('click', () => makeDependentModal.style.display = 'none');
+            makeDependentOkBtn.addEventListener('click', () => {
+                const targetFamilyId = makeDependentSelect.value;
+                const sourceFamilyId = makeDependentSourceFamilyId.value;
+
+                if (!targetFamilyId) {
+                    showAlert('Please select an employee.');
+                    return;
+                }
+
+                const sourceRow = document.querySelector(`.employee-row-start[data-family-id="${sourceFamilyId}"]`);
+                const targetRow = document.querySelector(`.employee-row-start[data-family-id="${targetFamilyId}"]`);
+
+                if (!sourceRow || !targetRow) {
+                    showAlert('Error finding rows.');
+                    makeDependentModal.style.display = 'none';
+                    return;
+                }
+
+                const depData = {
+                    relation: 'Spouse', 
+                    first: sourceRow.querySelector('.row-first').value,
+                    last: sourceRow.querySelector('.row-last').value,
+                    dob: sourceRow.querySelector('.row-dob').value,
+                    gender: sourceRow.querySelector('.row-gender').value
+                };
+
+                // Remove source family entirely
+                document.querySelectorAll(`[data-family-id="${sourceFamilyId}"]`).forEach(row => row.remove());
+
+                // Add dependent to target family
+                const newDepRow = addDependentRow(targetRow, targetFamilyId, depData, false);
+                if (newDepRow) {
+                    newDepRow.querySelector('.row-relation').focus();
+                }
+
+                isDirty = true;
+                updateNoFamiliesMessage();
+                updateKPIs();
+                saveToLocalStorage();
+                makeDependentModal.style.display = 'none';
+            });
             
             // START: ADDED: Listener for adding dependent from modal
             familyFormModalAddDep.addEventListener('click', () => {
@@ -3409,7 +2809,7 @@ Please provide the JSON transformation plan.`;
             employeeTableBody.addEventListener('keydown', handleKeyboardNav);
 
             // --- Initial Load Logic ---
-            geminiApiKeyInput.value = localStorage.getItem(API_KEY_LS_KEY) || '';
+            geminiApiKeyInput.value = import.meta.env.VITE_GEMINI_API_KEY || localStorage.getItem(API_KEY_LS_KEY) || '';
             
             // Start the zip data download
             await loadZipData();
@@ -3431,6 +2831,24 @@ Please provide the JSON transformation plan.`;
                 isDirty = false;
             }
 
+            // --- Welcome Modal Logic ---
+            if (localStorage.getItem('hideWelcomeModal') !== 'true') {
+                welcomeModal.style.display = 'flex';
+            }
+
+            helpBtn.addEventListener('click', () => {
+                welcomeModal.style.display = 'flex';
+            });
+
+            closeWelcomeBtn.addEventListener('click', () => {
+                welcomeModal.style.display = 'none';
+                if (dontShowWelcomeCheck.checked) {
+                    localStorage.setItem('hideWelcomeModal', 'true');
+                } else {
+                    localStorage.removeItem('hideWelcomeModal');
+                }
+            });
+
             // --- Unload Warning ---
             window.addEventListener('beforeunload', (e) => {
                 if (isDirty) {
@@ -3444,7 +2862,3 @@ Please provide the JSON transformation plan.`;
         
         // --- Start the app ---
         document.addEventListener('DOMContentLoaded', main);
-
-    </script>
-</body>
-</html>

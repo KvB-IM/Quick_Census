@@ -1,0 +1,298 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", sans-serif;
+  --color-slate-850: #151f32;
+  
+  /* Override Indigo to be the Brand Blue (#083B6D is the 700 shade) */
+  --color-indigo-50: #f0f5fa;
+  --color-indigo-100: #e1ebf6;
+  --color-indigo-200: #c4d7ec;
+  --color-indigo-300: #9abce0;
+  --color-indigo-400: #6a9ed0;
+  --color-indigo-500: #0a5fbd;
+  --color-indigo-600: #0a4f91;
+  --color-indigo-700: #083B6D;
+  --color-indigo-800: #062b50;
+  --color-indigo-900: #041a33;
+}
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+
+        /* Hide number arrows */
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        
+        /* Table Styles */
+        .census-table th {
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            background-color: rgba(248, 250, 252, 0.95); /* slate-50 */
+            backdrop-filter: blur(4px);
+            font-weight: 700;
+            font-size: 0.70rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #083B6D; /* brand color */
+            padding: 10px 8px;
+            border-bottom: 1px solid #e2e8f0;
+            white-space: nowrap;
+        }
+        
+        /* Sticky Column Logic */
+        .sticky-col {
+            position: sticky;
+            left: 0;
+            background-color: inherit; /* Use parent background */
+            z-index: 30 !important; /* Higher than normal cells */
+            box-shadow: 2px 0 5px -2px rgba(0,0,0,0.1); /* Subtle shadow separator */
+        }
+        
+        /* Ensure header sticky col sits above row sticky cols */
+        th.sticky-col {
+            z-index: 40 !important;
+            background-color: rgba(248, 250, 252, 1); /* Solid background for header */
+        }
+
+        /* Slick "Ghost" Inputs */
+        .table-input, .table-select {
+            width: 100%;
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 6px;
+            padding: 6px 8px;
+            font-size: 0.875rem;
+            color: #334155;
+            transition: all 0.15s ease;
+            outline: none;
+        }
+
+        .table-input:hover, .table-select:hover {
+            background-color: #f1f5f9; /* slate-100 */
+        }
+
+        .table-input:focus, .table-select:focus {
+            background-color: white;
+            border-color: #6366f1; /* indigo-500 */
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .table-input:read-only, .table-select:disabled {
+            color: #94a3b8;
+            cursor: default;
+        }
+        
+        .table-input:read-only:hover {
+            background: transparent;
+        }
+
+        /* Row Styling */
+        .employee-row-start {
+            /* border-top: 1px solid #e2e8f0; */
+        }
+        
+        /* Separation between families */
+        .employee-row-start td {
+            border-top: 1px solid #cbd5e1;
+            padding-top: 12px;
+            padding-bottom: 4px;
+        }
+        
+        .dependent-row td {
+            padding-top: 2px;
+            padding-bottom: 2px;
+        }
+        
+        /* Duplicate Row Highlight */
+        .duplicate-row td {
+            background-color: #fef3c7 !important; /* amber-100 */
+        }
+        
+        /* Ensure checkboxes are centered */
+        td.text-center {
+            vertical-align: middle;
+        }
+
+        /* Custom Checkbox Look */
+        input[type="checkbox"] {
+            accent-color: #4f46e5;
+            cursor: pointer;
+            width: 1.1rem;
+            height: 1.1rem;
+        }
+
+        /* Action Buttons */
+        .icon-btn {
+            padding: 6px;
+            border-radius: 8px;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .icon-btn:hover {
+            transform: scale(1.1);
+        }
+        .icon-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(to bottom right, #0a4f91, #083B6D);
+            color: white;
+            box-shadow: 0 4px 6px -1px rgba(8, 59, 109, 0.4), 0 2px 4px -1px rgba(8, 59, 109, 0.2);
+            transition: all 0.2s;
+        }
+        .btn-primary:hover {
+            box-shadow: 0 10px 15px -3px rgba(8, 59, 109, 0.5), 0 4px 6px -2px rgba(8, 59, 109, 0.3);
+            transform: translateY(-1px);
+        }
+        
+        /* Animation */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+        
+        /* Toast Animation */
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .toast-slide-in {
+            animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        
+        /* Fill Down Button */
+        .fill-down-btn {
+            opacity: 0;
+            transition: opacity 0.2s;
+            cursor: pointer;
+            margin-left: 4px;
+            color: #94a3b8;
+        }
+        th:hover .fill-down-btn {
+            opacity: 1;
+        }
+        .fill-down-btn:hover {
+            color: #4f46e5;
+        }
+        
+        /* --- MOBILE CARD VIEW CSS --- */
+        @media (max-width: 1024px) {
+            /* Hide Header */
+            .census-table thead { display: none; }
+            
+            /* Block Layout */
+            .census-table, .census-table tbody, .census-table tr, .census-table td {
+                display: block;
+                width: 100%;
+            }
+            
+            /* Card Style for Rows */
+            .census-table tr {
+                margin-bottom: 1rem;
+                border: 1px solid #e2e8f0;
+                border-radius: 0.75rem;
+                background: white;
+                box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+                overflow: hidden;
+            }
+            
+            /* Dependent Row indentation/styling */
+            .census-table tr.dependent-row {
+                margin-left: 1rem;
+                width: calc(100% - 1rem);
+                border-left: 4px solid #e2e8f0;
+            }
+
+            /* Cell Formatting */
+            .census-table td {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 0.5rem 1rem;
+                border-bottom: 1px solid #f1f5f9;
+                text-align: right;
+                min-height: 3rem; /* Ensure height for inputs */
+            }
+            
+            .census-table td:last-child {
+                border-bottom: none;
+            }
+            
+            /* Disable Sticky on Mobile */
+            .sticky-col {
+                position: static !important;
+                box-shadow: none !important;
+            }
+            
+            /* Labels from data attributes */
+            .census-table td::before {
+                content: attr(data-label);
+                font-weight: 700;
+                text-transform: uppercase;
+                font-size: 0.65rem;
+                color: #94a3b8;
+                text-align: left;
+                flex-shrink: 0;
+                margin-right: 1rem;
+                width: 30%; /* Fixed width for labels for alignment */
+            }
+            
+            /* Specific Cell Tweaks */
+            .census-table td.action-cell {
+                background-color: #f8fafc;
+                border-bottom: 1px solid #e2e8f0;
+                justify-content: flex-end;
+                padding: 0.5rem;
+            }
+            .census-table td.action-cell::before { display: none; }
+            
+            /* Hide spacing cells used in desktop layout */
+            .desktop-spacer { display: none !important; }
+            
+            /* Input widths on mobile */
+            .table-input, .table-select {
+                text-align: right;
+                background-color: rgba(248, 250, 252, 0.5);
+            }
+            .table-input:focus, .table-select:focus {
+                text-align: left;
+                background-color: white;
+            }
+            
+            /* Fix checkbox alignment */
+            input[type="checkbox"] {
+                margin-left: auto;
+            }
+            
+            /* Badge positioning fix for mobile flex layout */
+            .age-badge {
+                top: 50%;
+                right: 2rem; /* Move left of the chevron */
+            }
+        }
