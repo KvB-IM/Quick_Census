@@ -19,6 +19,9 @@
     "url": "https://github.com/KvB-IM/Quick_Census/issues"
   },
   "homepage": "https://github.com/KvB-IM/Quick_Census#readme",
+  "engines": {
+    "node": ">=20.x"
+  },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.4",
     "tailwindcss": "^4.2.4",
